@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  deepstream-worker:
+    image: nvcr.io/nvidia/deepstream:6.4-gc-triton-devel
+    container_name: aeromind_deepstream
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - DISPLAY=$DISPLAY
+      - KAFKA_BROKER=kafka:9092
+      - MQTT_BROKER=aeromind_mqtt:1883
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ./config:/opt/nvidia/deepstream/deepstream/config
+      - ./models:/opt/nvidia/deepstream/deepstream/models
+      - ./scripts:/opt/nvidia/deepstream/deepstream/scripts
+    command: python3 scripts/deepstream_pipeline.py -c config/deepstream_app_config.txt
+    network_mode: host
+    restart: unless-stopped

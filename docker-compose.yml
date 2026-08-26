@@ -1,0 +1,68 @@
+services:
+  # Database Service (PostgreSQL)
+  postgres:
+    image: postgres:16-alpine
+    container_name: aeromind-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aeromind
+      POSTGRES_PASSWORD: aeromind_secure_password
+      POSTGRES_DB: aeromind_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeromind -d aeromind_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Message Bus
+  redis:
+    image: redis:7-alpine
+    container_name: aeromind-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Backend & Real-Time Physical AI Engine
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: aeromind-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://aeromind:aeromind_secure_password@postgres:5432/aeromind_db
+      - REDIS_URL=redis://redis:6379/0
+      - FORTYGUARD_API_KEY=${FORTYGUARD_API_KEY:-}
+      - FORTYGUARD_BASE_URL=${FORTYGUARD_BASE_URL:-https://api.fortyguard.io/v1}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - HOST=0.0.0.0
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+
+  # Frontend Operations Center Web UI
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: aeromind-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  redis_data:
