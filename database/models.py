@@ -339,3 +339,17 @@ class VideoJob(Base):
     summary_report = Column(JSON, default=dict)
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), index=True, nullable=True)
+    user_role = Column(String(50), nullable=True)
+    timestamp = Column(DateTime(timezone=True), default=utc_now, index=True)
+    prompt_category = Column(String(100), nullable=True)
+    tool_requested = Column(String(100), nullable=True)
+    tool_executed = Column(Boolean, default=False)
+    authorization_status = Column(String(50), nullable=True) # AUTHORIZED, UNAUTHORIZED, N/A
+    result_summary = Column(Text, nullable=True)
+    metadata_json = Column(JSON, default=dict)
+

@@ -4,7 +4,7 @@ import { useAuth } from '../services/authContext';
 
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@aeromind.local');
+  const [email, setEmail] = useState('admin@aeromind.io');
   const [password, setPassword] = useState('admin123');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
