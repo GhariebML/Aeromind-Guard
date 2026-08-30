@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from apps.backend.src.auth import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -17,7 +18,7 @@ from apps.backend.src.websocket_hub import ws_hub
 
 logger = logging.getLogger("aeromind.routes.video")
 
-router = APIRouter(prefix="/api/v1/video", tags=["Computer Vision & Video Analytics"])
+router = APIRouter(prefix="/api/v1/video", tags=["Computer Vision & Video Analytics"], dependencies=[Depends(get_current_user)])
 
 video_engine = VideoAnalyticsEngine()
 

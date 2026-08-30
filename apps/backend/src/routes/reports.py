@@ -2,13 +2,14 @@ import io
 import csv
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, Response
+from apps.backend.src.auth import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from database.connection import get_db
 from database.models import Alert, RiskScore, RiskEvent, Location, AIDecision
 
-router = APIRouter(prefix="/api/v1/reports", tags=["Reports & Export"])
+router = APIRouter(prefix="/api/v1/reports", tags=["Reports & Export"], dependencies=[Depends(get_current_user)])
 
 @router.get("/export")
 async def export_operational_report(

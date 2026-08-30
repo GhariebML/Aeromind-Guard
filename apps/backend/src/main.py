@@ -18,6 +18,8 @@ from apps.backend.src.routes.environmental import router as env_router
 from apps.backend.src.routes.video import router as video_router
 from apps.backend.src.routes.copilot import router as copilot_router
 from apps.backend.src.routes.reports import router as reports_router
+from apps.backend.src.routes.auth import router as auth_router
+from apps.backend.src.routes.temperature import router as temperature_router
 
 # Configure Structured Logging
 logging.basicConfig(
@@ -94,6 +96,8 @@ app.include_router(env_router)
 app.include_router(video_router)
 app.include_router(copilot_router)
 app.include_router(reports_router)
+app.include_router(auth_router)
+app.include_router(temperature_router)
 
 # Mount static files for snapshots
 os.makedirs("data/processed/snapshots", exist_ok=True)
@@ -102,6 +106,19 @@ app.mount("/snapshots", StaticFiles(directory="data/processed/snapshots"), name=
 # Real-Time WebSocket Endpoint with Heartbeat Support
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Missing authentication token")
+        return
+        
+    try:
+        from apps.backend.src.auth import SECRET_KEY, ALGORITHM
+        import jwt
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception as e:
+        await websocket.close(code=1008, reason="Invalid authentication token")
+        return
+
     await ws_hub.connect(websocket)
     try:
         while True:
@@ -119,4 +136,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("apps.backend.src.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("apps.backend.src.main:app", host="0.0.0.0", port=8080, reload=True)

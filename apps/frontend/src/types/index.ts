@@ -1,3 +1,16 @@
+export interface User {
+  email: string;
+  role: 'admin' | 'operator' | 'analyst' | string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+  error: string | null;
+}
+
 export interface Location {
   id: string;
   name: string;

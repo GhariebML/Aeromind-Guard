@@ -6,6 +6,7 @@ from database.models import (
     TemperatureReading, EnvironmentalReading, RiskScore,
     Alert, AIDecision, ModelVersion
 )
+from apps.backend.src.auth import get_password_hash
 
 def seed_database(db: Session):
     """
@@ -21,7 +22,7 @@ def seed_database(db: Session):
         db.add(org)
         db.flush()
 
-    # 2. User
+    # 2. Users
     user = db.query(User).filter_by(email="operator@aeromind.io").first()
     if not user:
         user = User(
@@ -29,10 +30,24 @@ def seed_database(db: Session):
             organization_id=org.id,
             email="operator@aeromind.io",
             full_name="Lead Safety Officer",
+            hashed_password=get_password_hash("operator123"),
             role="OPERATOR",
             is_active=True
         )
         db.add(user)
+
+    admin = db.query(User).filter_by(email="admin@aeromind.io").first()
+    if not admin:
+        admin = User(
+            id=str(uuid.uuid4()),
+            organization_id=org.id,
+            email="admin@aeromind.io",
+            full_name="System Administrator",
+            hashed_password=get_password_hash("admin123"),
+            role="admin",
+            is_active=True
+        )
+        db.add(admin)
 
     # 3. Monitored Locations / Zones
     zones_data = [

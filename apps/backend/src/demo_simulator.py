@@ -90,13 +90,14 @@ class DemoSimulator:
             result = await self.pipeline.ingest_location(
                 db=db,
                 location=target_location,
-                use_demo_mode=True,
+                use_demo_mode=False,
                 visual_hazards=visual_hazards,
                 people_in_danger_zone=people_in_danger
             )
 
             # Broadcast typed events
             await ws_hub.broadcast("telemetry.updated", result)
+            await ws_hub.broadcast("temperature.updated", result)
             await ws_hub.broadcast("risk.updated", {
                 "location_id": target_location.id,
                 "risk_score": result["risk_score"],

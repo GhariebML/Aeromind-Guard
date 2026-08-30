@@ -1,5 +1,6 @@
 import time
 from fastapi import APIRouter, Depends
+from apps.backend.src.auth import get_current_user, require_role
 from sqlalchemy.orm import Session
 from database.connection import get_db
 from apps.backend.src.hardware import get_hardware_telemetry
@@ -22,7 +23,7 @@ async def get_health():
         "uptime_seconds": round(time.time() - START_TIME, 1)
     }
 
-@router.get("/system/status")
+@router.get("/system/status", dependencies=[Depends(get_current_user)])
 async def get_system_status(db: Session = Depends(get_db)):
     hw = get_hardware_telemetry()
     fg_status = await fortyguard.get_status()
@@ -56,7 +57,7 @@ async def get_system_status(db: Session = Depends(get_db)):
         "demo_mode_active": simulator.is_running
     }
 
-@router.post("/system/demo-mode/toggle")
+@router.post("/system/demo-mode/toggle", dependencies=[Depends(require_role("admin"))])
 async def toggle_demo_mode():
     if simulator.is_running:
         simulator.stop()

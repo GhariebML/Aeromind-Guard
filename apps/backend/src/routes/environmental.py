@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from apps.backend.src.auth import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -15,7 +16,7 @@ from services.risk_engine.calculator import RiskEngine
 from services.prediction_engine.forecaster import RiskForecaster
 from apps.backend.src.websocket_hub import ws_hub
 
-router = APIRouter(prefix="/api/v1", tags=["Physical AI Intelligence"])
+router = APIRouter(prefix="/api/v1", tags=["Physical AI Intelligence"], dependencies=[Depends(get_current_user)])
 
 risk_engine = RiskEngine()
 forecaster = RiskForecaster()

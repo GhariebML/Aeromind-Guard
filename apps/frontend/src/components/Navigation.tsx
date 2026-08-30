@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import {
   ShieldAlert, Activity, Video, Map, Box,
   BarChart3, Bell, Bot, Cpu, Download, Play, Square, RefreshCw,
-  Volume2, VolumeX, FileText
+  Volume2, VolumeX, FileText, LogOut, User as UserIcon
 } from 'lucide-react';
 import { SystemStatus } from '../types';
 import { audioAlarms } from '../services/audioAlarms';
+import { useAuth } from '../services/authContext';
 
 interface NavigationProps {
   activeTab: string;
@@ -24,6 +25,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   onRefresh,
   isDemoLoading
 }) => {
+  const { user, logout } = useAuth();
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(audioAlarms.getMuted());
 
   const toggleMute = () => {
@@ -32,17 +34,19 @@ export const Navigation: React.FC<NavigationProps> = ({
     setIsAudioMuted(nextState);
   };
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: Activity },
-    { id: 'live-intelligence', label: 'Live Intel', icon: ShieldAlert },
-    { id: 'video', label: 'Video AI', icon: Video },
-    { id: 'map', label: 'Spatial Map', icon: Map },
-    { id: 'digital-twin', label: 'Digital Twin 3D', icon: Box },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'alerts', label: 'Alerts', icon: Bell },
-    { id: 'copilot', label: 'AI Copilot', icon: Bot },
-    { id: 'system-health', label: 'System Health', icon: Cpu },
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: Activity, roles: ['admin', 'operator', 'analyst'] },
+    { id: 'live-intelligence', label: 'Live Intel', icon: ShieldAlert, roles: ['admin', 'operator'] },
+    { id: 'video', label: 'Video AI', icon: Video, roles: ['admin', 'operator'] },
+    { id: 'map', label: 'Spatial Map', icon: Map, roles: ['admin', 'operator'] },
+    { id: 'digital-twin', label: 'Digital Twin 3D', icon: Box, roles: ['admin', 'operator'] },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3, roles: ['admin', 'analyst'] },
+    { id: 'alerts', label: 'Alerts', icon: Bell, roles: ['admin', 'operator', 'analyst'] },
+    { id: 'copilot', label: 'AI Copilot', icon: Bot, roles: ['admin', 'operator', 'analyst'] },
+    { id: 'system-health', label: 'System Health', icon: Cpu, roles: ['admin'] },
   ];
+
+  const tabs = allTabs.filter(tab => tab.roles.includes(user?.role || ''));
 
   const fgProvider = systemStatus?.providers.find(p => p.provider_name.includes('FortyGuard'));
   const fgStatus = fgProvider?.status || 'NOT_CONFIGURED';
@@ -135,53 +139,59 @@ export const Navigation: React.FC<NavigationProps> = ({
             {isAudioMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
 
-          {/* Demo Mode Toggle */}
-          <button
-            onClick={onToggleDemo}
-            disabled={isDemoLoading}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono font-medium border transition-colors ${
-              systemStatus?.demo_mode_active
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
-            }`}
-            title="Toggle deterministic synthetic telemetry stream"
-          >
-            {systemStatus?.demo_mode_active ? (
-              <>
-                <Square className="w-3 h-3 text-emerald-400" />
-                <span>SIMULATOR ON</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-3 h-3 text-slate-400" />
-                <span>START DEMO</span>
-              </>
-            )}
-          </button>
+          {/* Demo Mode Toggle - Admin Only */}
+          {user?.role === 'admin' && (
+            <button
+              onClick={onToggleDemo}
+              disabled={isDemoLoading}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-mono font-medium border transition-colors ${
+                systemStatus?.demo_mode_active
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+              }`}
+              title="Toggle deterministic synthetic telemetry stream"
+            >
+              {systemStatus?.demo_mode_active ? (
+                <>
+                  <Square className="w-3 h-3 text-emerald-400" />
+                  <span>SIMULATOR ON</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3 h-3 text-slate-400" />
+                  <span>START DEMO</span>
+                </>
+              )}
+            </button>
+          )}
 
-          {/* HSE Compliance Audit Report */}
-          <a
-            href="/api/v1/reports/compliance-report"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-colors"
-            title="Download Official HSE / OSHA Compliance Audit Document"
-          >
-            <FileText className="w-3 h-3 text-emerald-400" />
-            <span className="hidden sm:inline">HSE Report</span>
-          </a>
+          {/* HSE Compliance Audit Report - Admin / Analyst Only */}
+          {(user?.role === 'admin' || user?.role === 'analyst') && (
+            <a
+              href="/api/v1/reports/compliance-report"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition-colors"
+              title="Download Official HSE / OSHA Compliance Audit Document"
+            >
+              <FileText className="w-3 h-3 text-emerald-400" />
+              <span className="hidden sm:inline">HSE Report</span>
+            </a>
+          )}
 
-          {/* Export JSON Report */}
-          <a
-            href="/api/v1/reports/export?format=json"
-            target="_blank"
-            rel="noreferrer"
-            download
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-cyan-600/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-600/30 transition-colors"
-          >
-            <Download className="w-3 h-3 text-cyan-400" />
-            <span className="hidden sm:inline">Export</span>
-          </a>
+          {/* Export JSON Report - Admin / Analyst Only */}
+          {(user?.role === 'admin' || user?.role === 'analyst') && (
+            <a
+              href="/api/v1/reports/export?format=json"
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-cyan-600/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-600/30 transition-colors"
+            >
+              <Download className="w-3 h-3 text-cyan-400" />
+              <span className="hidden sm:inline">Export</span>
+            </a>
+          )}
 
           {/* Manual Refresh */}
           <button
@@ -191,6 +201,26 @@ export const Navigation: React.FC<NavigationProps> = ({
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
+
+          <div className="h-5 w-px bg-slate-700 mx-1 hidden sm:block" />
+
+          {/* User Session UI */}
+          <div className="flex items-center gap-2 pl-1">
+            <div className="hidden sm:flex flex-col items-end mr-1">
+              <span className="text-xs font-bold text-slate-200">{user?.email}</span>
+              <span className="text-[9px] font-mono font-medium text-cyan-400 uppercase tracking-widest">{user?.role}</span>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-400">
+              <UserIcon className="w-4 h-4" />
+            </div>
+            <button
+              onClick={logout}
+              className="p-1.5 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 transition-colors border border-transparent hover:border-rose-900/50"
+              title="End Secure Session"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </header>

@@ -3,10 +3,9 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
-from services.ingestion.provider import EnvironmentalDataProvider
-from services.ingestion.fortyguard import FortyGuardProvider
-from services.ingestion.demo_provider import DemoEnvironmentalProvider
 from services.ingestion.mqtt_provider import MQTTProvider
+from services.temperature.fortyguard_client import FortyGuardProvider
+from services.temperature.provider import LocalDemoProvider, ProviderStatus
 from services.analytics.anomaly import AnomalyDetector
 from services.risk_engine.calculator import RiskEngine
 from services.correlation.engine import CorrelationEngine
@@ -36,7 +35,7 @@ class IngestionPipeline:
         mqtt_provider: Optional[MQTTProvider] = None
     ):
         self.fortyguard = fortyguard_provider or FortyGuardProvider()
-        self.demo_provider = demo_provider or DemoEnvironmentalProvider()
+        self.demo_provider = demo_provider or LocalDemoProvider()
         self.mqtt_provider = mqtt_provider
         if os.getenv("USE_MQTT_BROKER", "false").lower() == "true" and not self.mqtt_provider:
             self.mqtt_provider = MQTTProvider()
@@ -62,73 +61,48 @@ class IngestionPipeline:
         visual_hazards = visual_hazards or []
 
         # 1. Select provider
-        readings = []
-        if not use_demo_mode and self.fortyguard.is_configured():
-            try:
-                readings = await self.fortyguard.fetch_current_readings(
-                    latitude=location.latitude,
-                    longitude=location.longitude,
-                    location_id=location.id
-                )
-            except Exception as e:
-                logger.error(f"[Ingestion] FortyGuard fetch failed for {location.name}: {e}")
-
-        if not readings:
-            if self.mqtt_provider and await self.mqtt_provider.get_status() == "CONNECTED":
-                readings = await self.mqtt_provider.fetch_current_readings(
-                    latitude=location.latitude,
-                    longitude=location.longitude,
-                    location_id=location.id
-                )
-            
-            if not readings:
-                # Use deterministic Demo Provider as last resort
-                readings = await self.demo_provider.fetch_current_readings(
-                    latitude=location.latitude,
-                    longitude=location.longitude,
-                    location_id=location.id
-                )
-
-        # 2. Process readings & Anomaly Detection
         ambient_temp = location.baseline_temp_c
         surface_temp = None
         current_anomaly_score = 0.0
         active_anomalies = []
         rate_of_change = 0.0
-
-        for r in readings:
-            metric = r["metric"]
-            val = float(r["value"])
-
-            # Run Anomaly Detector
+        provider_name = "DEMO"
+        
+        obs = None
+        status = await self.fortyguard.get_status()
+        if not use_demo_mode and status == ProviderStatus.CONNECTED:
+            obs = await self.fortyguard.fetch_temperature(location=location.name)
+            
+        if not obs:
+            obs = await self.demo_provider.fetch_temperature(location=location.name)
+            
+        if obs:
+            ambient_temp = obs.temperature
+            provider_name = obs.provider
+            
+            # Run Anomaly Detector on ambient_temp
             anomaly_res = self.anomaly_detector.update_and_detect(
                 location_id=location.id,
-                metric=metric,
-                value=val,
-                timestamp=r.get("timestamp", now)
+                metric="ambient_temp",
+                value=ambient_temp,
+                timestamp=obs.measured_at
             )
-
-            if metric == "ambient_temp":
-                ambient_temp = val
-                current_anomaly_score = max(current_anomaly_score, anomaly_res.anomaly_score)
-                rate_of_change = anomaly_res.rate_of_change
-            elif metric == "surface_temp":
-                surface_temp = val
-
+            current_anomaly_score = max(current_anomaly_score, anomaly_res.anomaly_score)
+            rate_of_change = anomaly_res.rate_of_change
             if anomaly_res.is_anomaly:
                 active_anomalies.append(anomaly_res.model_dump())
-
+                
             # Persist Environmental Reading to DB
             env_record = EnvironmentalReading(
                 location_id=location.id,
-                timestamp=r.get("timestamp", now),
-                metric=metric,
-                value=val,
-                unit=r.get("unit", ""),
-                quality=r.get("quality", 1.0),
+                timestamp=obs.measured_at,
+                metric="ambient_temp",
+                value=ambient_temp,
+                unit="C",
+                quality=1.0,
                 is_anomaly=anomaly_res.is_anomaly,
                 anomaly_score=anomaly_res.anomaly_score,
-                metadata_json=r.get("metadata", {})
+                metadata_json={"provider": provider_name}
             )
             db.add(env_record)
 
@@ -141,7 +115,7 @@ class IngestionPipeline:
             rate_of_change_c_per_hr=rate_of_change,
             is_anomaly=len(active_anomalies) > 0,
             anomaly_score=current_anomaly_score,
-            source_provider="DEMO_MODE" if use_demo_mode or not self.fortyguard.is_configured() else "FORTYGUARD"
+            source_provider=provider_name
         )
         db.add(temp_record)
 
@@ -308,5 +282,6 @@ class IngestionPipeline:
             "anomalies_count": len(active_anomalies),
             "events_count": len(created_events),
             "alerts_count": len(created_alerts),
-            "decision": decision.model_dump()
+            "decision": decision.model_dump(),
+            "provider": provider_name
         }

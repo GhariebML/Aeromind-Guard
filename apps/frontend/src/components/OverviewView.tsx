@@ -150,6 +150,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <span className="text-4xl font-extrabold font-mono text-slate-100 drop-shadow-sm">
               {locations.length}
             </span>
+          </div>
           <div className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono mt-auto">
             <CheckCircle2 className="w-3.5 h-3.5" /> Sensors nominal
           </div>
@@ -243,8 +244,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
                     <span className="capitalize">{loc.zone_type.toLowerCase()} Sector</span>
-                    <span className="font-mono text-[10px] text-slate-400">
-                      Lat: {loc.latitude.toFixed(3)}
+                    <span className="font-mono text-[10px]">
+                      {loc.metadata?.provider === 'DEMO' ? (
+                        <span className="text-amber-400 font-bold px-1 py-0.5 bg-amber-900/40 rounded">DEMO DATA</span>
+                      ) : loc.metadata?.provider === 'FORTYGUARD' ? (
+                        <span className="text-emerald-400 font-bold px-1 py-0.5 bg-emerald-900/40 rounded">LIVE (FG)</span>
+                      ) : (
+                        <span className="text-slate-400">Lat: {loc.latitude.toFixed(3)}</span>
+                      )}
                     </span>
                   </div>
                 </div>

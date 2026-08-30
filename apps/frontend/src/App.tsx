@@ -15,8 +15,11 @@ import {
 } from './types';
 import { api } from './services/api';
 import { audioAlarms } from './services/audioAlarms';
+import { useAuth } from './services/authContext';
+import { LoginView } from './components/LoginView';
 
 export const App: React.FC = () => {
+  const { isAuthenticated, loading, token, logout, user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('overview');
 
   // Operational State
@@ -60,11 +63,13 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!isAuthenticated || !token) return;
+
     refreshAllState();
 
     // WebSocket Live Updates Connection with Standard Event Taxonomy & Heartbeat
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`;
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
     let heartbeatInterval: any = null;
@@ -88,7 +93,7 @@ export const App: React.FC = () => {
           const evType = envelope.event_type || envelope.type;
           const data = envelope.data || envelope.payload;
 
-          if (evType === 'telemetry.updated' || evType === 'TELEMETRY_UPDATE') {
+          if (evType === 'telemetry.updated' || evType === 'temperature.updated' || evType === 'TELEMETRY_UPDATE') {
             setLiveMessages((prev) => [data, ...prev.slice(0, 30)]);
             if (data?.location_id) {
               setLocations((prev) =>
@@ -98,7 +103,11 @@ export const App: React.FC = () => {
                         ...loc,
                         current_temp_c: data.ambient_temp_c ?? loc.current_temp_c,
                         current_risk_score: data.risk_score ?? loc.current_risk_score,
-                        current_severity: data.severity ?? loc.current_severity
+                        current_severity: data.severity ?? loc.current_severity,
+                        metadata: {
+                          ...loc.metadata,
+                          provider: data.provider ?? loc.metadata?.provider
+                        }
                       }
                     : loc
                 )
@@ -129,8 +138,13 @@ export const App: React.FC = () => {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         clearInterval(heartbeatInterval);
+        if (event.code === 1008) {
+          console.error('[WebSocket] Authentication failure (1008). Logging out.');
+          logout();
+          return;
+        }
         console.warn('[WebSocket] Disconnected. Reconnecting in 3s...');
         reconnectTimeout = setTimeout(connectWebSocket, 3000);
       };
@@ -148,7 +162,15 @@ export const App: React.FC = () => {
       clearTimeout(reconnectTimeout);
       ws?.close();
     };
-  }, [refreshAllState]);
+  }, [refreshAllState, isAuthenticated, token, logout]);
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-cyan-500 font-mono text-sm animate-pulse">INITIALIZING SECURITY MODULE...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginView />;
+  }
 
   const handleToggleDemo = async () => {
     setIsDemoLoading(true);
@@ -224,7 +246,7 @@ export const App: React.FC = () => {
               />
             )}
 
-            {activeTab === 'live-intelligence' && (
+            {activeTab === 'live-intelligence' && user?.role !== 'analyst' && (
               <LiveIntelligenceView
                 locations={locations}
                 riskScores={riskScores}
@@ -234,19 +256,19 @@ export const App: React.FC = () => {
               />
             )}
 
-            {activeTab === 'video' && (
+            {activeTab === 'video' && user?.role !== 'analyst' && (
               <VideoIntelligenceView cameras={cameras} />
             )}
 
-            {activeTab === 'map' && (
+            {activeTab === 'map' && user?.role !== 'analyst' && (
               <SpatialMapView locations={locations} cameras={cameras} />
             )}
 
-            {activeTab === 'digital-twin' && (
+            {activeTab === 'digital-twin' && user?.role !== 'analyst' && (
               <DigitalTwinView locations={locations} riskScores={riskScores} />
             )}
 
-            {activeTab === 'analytics' && (
+            {activeTab === 'analytics' && user?.role !== 'operator' && (
               <AnalyticsView locations={locations} />
             )}
 
@@ -262,7 +284,7 @@ export const App: React.FC = () => {
               <CopilotView />
             )}
 
-            {activeTab === 'system-health' && (
+            {activeTab === 'system-health' && user?.role === 'admin' && (
               <SystemHealthView systemStatus={systemStatus} />
             )}
           </>

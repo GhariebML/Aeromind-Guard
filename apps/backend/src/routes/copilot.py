@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from apps.backend.src.auth import get_current_user
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -7,7 +8,7 @@ from database.models import Location, Alert, RiskScore, EnvironmentalReading, Vi
 from database.schemas import CopilotQueryRequest, CopilotQueryResponse
 from services.copilot.agent import AeroMindCopilot
 
-router = APIRouter(prefix="/api/v1/copilot", tags=["AI Copilot"])
+router = APIRouter(prefix="/api/v1/copilot", tags=["AI Copilot"], dependencies=[Depends(get_current_user)])
 
 copilot = AeroMindCopilot()
 
